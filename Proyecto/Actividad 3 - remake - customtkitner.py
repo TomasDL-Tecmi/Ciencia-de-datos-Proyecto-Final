@@ -897,7 +897,7 @@ def seleccionar_variables_multiple():
     calcular_regresion_multiple()
 
 
-# Área de texto para mostrar los resultados de la regresión
+# Área de texto para mostrar los resultados de la regresión, ey aqui mi primer commit 
 #text_regresion_multiple = ctk.CTkTextbox(frame_regresion_multiple_main, wrap="word")
 #text_regresion_multiple.pack(fill="both", expand=True, padx=10, pady=10)
 
