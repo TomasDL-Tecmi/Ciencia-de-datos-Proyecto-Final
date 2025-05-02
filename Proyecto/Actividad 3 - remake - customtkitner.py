@@ -3,13 +3,11 @@
 import numpy as np
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
-plt.ioff()
 import math
 import pandas as pd
 import customtkinter as ctk
 from tkinter import filedialog
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from sklearn.metrics import r2_score
 import os
 import statsmodels.api as sm
 from fpdf import FPDF
@@ -895,12 +893,6 @@ def seleccionar_variables_multiple():
     variable_y = combo_y_multiple.get()
 
     calcular_regresion_multiple()
-
-
-# Área de texto para mostrar los resultados de la regresión, ey aqui mi primer commit 
-#text_regresion_multiple = ctk.CTkTextbox(frame_regresion_multiple_main, wrap="word")
-#text_regresion_multiple.pack(fill="both", expand=True, padx=10, pady=10)
-
 
 # Etiqueta para mensajes
 mensaje_label = ctk.CTkLabel(frame_calculos, textvariable=mensaje_var)
