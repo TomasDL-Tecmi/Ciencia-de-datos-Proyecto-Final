@@ -71,8 +71,7 @@ def cargar_archivo():
             combo_y.set('')  # Limpiar la selección previa en el combobox Y
 
             # === Poblar selector de regresión múltiple ===
-            actualizar_combo_variables()  
-            actualizar_combo_variables_lineal()
+            actualizar_combo_variables()  # <<--- Esta línea es clave
 
         except Exception as e:
             mensaje_var.set(f"Error al cargar el archivo: {str(e)}")
@@ -328,51 +327,45 @@ def calcular_regresion_lineal():
 
 # Función para calcular regresión múltiple
 def calcular_regresion_multiple():
-    global datos, variables_x, variable_y
+    global datos, variables_x, variable_y, text_resultado, frame_grafica, figura_canvas
 
     if datos is None or datos.empty:
-        mensaje_var.set("No se han cargado los datos correctamente.")
+        text_resultado.configure(state="normal")
+        text_resultado.delete("1.0", "end")
+        text_resultado.insert("1.0", "No se han cargado los datos correctamente.")
+        text_resultado.configure(state="disabled")
         return
 
     if not variables_x or not variable_y:
-        mensaje_var.set("Selecciona las variables para la regresión.")
+        text_resultado.configure(state="normal")
+        text_resultado.delete("1.0", "end")
+        text_resultado.insert("1.0", "Selecciona las variables para la regresión.")
+        text_resultado.configure(state="disabled")
         return
 
     try:
         X = datos[variables_x]
         y = datos[variable_y]
 
-        # Agregar constante para intercepto en statsmodels
-        X_con_constante = sm.add_constant(X)
-
-        # Modelo con statsmodels para obtener el summary
-        modelo_sm = sm.OLS(y, X_con_constante).fit()
+        X_const = sm.add_constant(X)
+        modelo_sm = sm.OLS(y, X_const).fit()
         resumen = modelo_sm.summary().as_text()
 
-        # También puedes usar LinearRegression para el ajuste, si deseas usarlo en el futuro
         regresion = LinearRegression()
         regresion.fit(X, y)
         y_pred = regresion.predict(X)
 
-        # Crear nueva ventana de resultados
-        ventana_resultados = ctk.CTkToplevel()
-        ventana_resultados.geometry("900x500")
-        ventana_resultados.title("Resultados - Regresión Múltiple")
+        # Mostrar resumen
+        text_resultado.configure(state="normal")
+        text_resultado.delete("1.0", "end")
+        text_resultado.insert("1.0", resumen)
+        text_resultado.configure(state="disabled")
 
-        # Panel izquierdo para el texto del summary
-        panel_texto = ctk.CTkFrame(ventana_resultados, width=400)
-        panel_texto.pack(side="left", fill="both", expand=False, padx=10, pady=10)
+        # Limpiar gráfica anterior
+        for widget in frame_grafica.winfo_children():
+            widget.destroy()
 
-        texto_resultado = ctk.CTkTextbox(panel_texto, wrap="word", width=400, font=("Consolas", 11))
-        texto_resultado.pack(fill="both", expand=True, padx=10, pady=10)
-        texto_resultado.insert("1.0", resumen)
-        texto_resultado.configure(state="disabled")
-
-        # Panel derecho para la gráfica
-        panel_grafico = ctk.CTkFrame(ventana_resultados)
-        panel_grafico.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-
-        # Crear figura matplotlib
+        # Crear nueva gráfica
         fig, ax = plt.subplots(figsize=(5, 4))
         ax.scatter(y, y_pred, c='blue', label='Valores Predichos')
         ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Línea Ideal')
@@ -382,15 +375,15 @@ def calcular_regresion_multiple():
         ax.legend()
         ax.grid(True)
 
-        # Embebemos la gráfica en tkinter
-        canvas = FigureCanvasTkAgg(fig, master=panel_grafico)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True)
+        figura_canvas = FigureCanvasTkAgg(fig, master=frame_grafica)
+        figura_canvas.draw()
+        figura_canvas.get_tk_widget().pack(fill="both", expand=True)
 
     except Exception as e:
-        mensaje_var.set(f"Error en la regresión: {str(e)}")
-
-
+        text_resultado.configure(state="normal")
+        text_resultado.delete("1.0", "end")
+        text_resultado.insert("1.0", f"Error en la regresión: {str(e)}")
+        text_resultado.configure(state="disabled")
 
 # --- Funcion para generar las graficas ---
 
@@ -715,45 +708,51 @@ label_y.pack(side="left", padx=(0, 5))
 combo_y = ctk.CTkComboBox(frame_seleccion, state="normal", width=200)
 combo_y.pack(side="left", padx=(0, 15))
 
-def actualizar_combo_variables_lineal():
-    global datos
-
-    if datos is not None:
-        columnas = datos.columns.tolist()
-
-        combo_x.configure(values=columnas)
-        # Actualizar combobox para variable Y
-        combo_y.configure(values=columnas)
-
-
 # Botón para calcular regresión
 boton_regresion = ctk.CTkButton(frame_seleccion, text="Calcular Regresión", command=calcular_regresion_lineal)
 boton_regresion.pack(side="left", padx=10)
 
-# Dividir en dos secciones: texto y gráfico
-text_regresion = ctk.CTkTextbox(frame_regresion_main, wrap="word")
-text_regresion.pack(fill="both", expand=True, padx=10, pady=10)
+# ========== NUEVA SECCIÓN COMBINADA: Texto y gráfico uno al lado del otro ==========
 
-frame_regresion = ctk.CTkFrame(frame_regresion_main)
-frame_regresion.pack(fill="both", expand=True, padx=10, pady=10)
+# Frame contenedor que se expandirá en vertical
+frame_resultado_y_grafico = ctk.CTkFrame(frame_regresion_main)
+frame_resultado_y_grafico.pack(fill="both", expand=True, padx=10, pady=10)
 
+# Configuración del grid interno para dividir horizontalmente
+frame_resultado_y_grafico.grid_rowconfigure(0, weight=1)
+frame_resultado_y_grafico.grid_columnconfigure(0, weight=1)  # Para texto
+frame_resultado_y_grafico.grid_columnconfigure(1, weight=1)  # Para gráfico
+
+# Textbox a la izquierda
+text_regresion = ctk.CTkTextbox(frame_resultado_y_grafico, wrap="word")
+text_regresion.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=5)
+
+# Frame para el gráfico a la derecha
+frame_regresion = ctk.CTkFrame(frame_resultado_y_grafico)
+frame_regresion.grid(row=0, column=1, sticky="nsew", padx=(5, 0), pady=5)
+
+
+#==============================multiple========================================
 
 # Variables para almacenar las selecciones de las variables
 variables_x = []  # Variables para las características independientes
 variable_y = ""   # Variable para la característica dependiente
+checkboxes_x_multiple = []  # Lista para almacenar los checkboxes
 
 # =============================== [ Controles para regresión múltiple ] ==============================
 
 # Frame superior para selección de variables
-frame_seleccion_multiple = ctk.CTkFrame(frame_regresion_multiple_main)
-frame_seleccion_multiple.pack(fill="x", padx=10, pady=(10, 0))
+frame_seleccion_multiple = ctk.CTkFrame(frame_regresion_multiple_main, height=40)
+frame_seleccion_multiple.pack(fill="x", padx=5, pady=(5, 0))
+frame_seleccion_multiple.pack_propagate(False)  # Evita que se expanda
 
 # Etiqueta para variables X
 label_x_multiple = ctk.CTkLabel(frame_seleccion_multiple, text="Variables X (Independientes):")
 label_x_multiple.grid(row=0, column=0, padx=5, pady=5, sticky="w")
 
-combo_x_multiple = ctk.CTkComboBox(frame_seleccion_multiple, state="normal", width=200)
-combo_x_multiple.grid(row=1, column=0, padx=5, pady=5)
+# ScrollableFrame en lugar de Listbox
+scroll_frame_x = ctk.CTkScrollableFrame(frame_seleccion_multiple, width=150, height=10)
+scroll_frame_x.grid(row=1, column=0, pady=5)
 
 # Etiqueta y combobox para variable Y (dependiente)
 label_y_multiple = ctk.CTkLabel(frame_seleccion_multiple, text="Variable Y (Dependiente):")
@@ -762,32 +761,66 @@ label_y_multiple.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 combo_y_multiple = ctk.CTkComboBox(frame_seleccion_multiple, state="normal", width=200)
 combo_y_multiple.grid(row=1, column=1, padx=5, pady=5)
 
-# Función para actualizar los widgets con las columnas disponibles
+# Botón para realizar la regresión múltiple
+boton_regresion_multiple = ctk.CTkButton(
+    frame_seleccion_multiple,
+    text="Calcular Regresión Múltiple",
+    command=lambda: seleccionar_variables_multiple()
+)
+boton_regresion_multiple.grid(row=1, column=2, columnspan=2, pady=10)
+
+# ======================= [ ÁREA DE RESULTADOS EN LA PESTAÑA ] ========================
+
+# Frame inferior para mostrar resultados
+frame_resultados_multiple = ctk.CTkFrame(frame_regresion_multiple_main)
+frame_resultados_multiple.pack(fill="both", expand=True, padx=10, pady=10)
+
+# Textbox para mostrar el resumen
+text_resultado = ctk.CTkTextbox(frame_resultados_multiple, wrap="word", font=("Consolas", 11))
+text_resultado.pack(side="left", fill="both", expand=True, padx=(0, 5))
+
+# Frame para la gráfica
+frame_grafica = ctk.CTkFrame(frame_resultados_multiple)
+frame_grafica.pack(side="right", fill="both", expand=True, padx=(5, 0))
+
+# Variable para evitar superposición de gráficas
+figura_canvas = None
+
+# =================================== FUNCIONES =======================================
+
+def crear_selector_multiple(frame, columnas):
+    global checkboxes_x_multiple
+    checkboxes_x_multiple = []
+
+    for widget in frame.winfo_children():
+        widget.destroy()
+
+    for col in columnas:
+        var = ctk.StringVar(value="0")
+        checkbox = ctk.CTkCheckBox(frame, text=col, variable=var, onvalue="1", offvalue="0")
+        checkbox.pack(anchor="w", padx=5, pady=2)
+        checkboxes_x_multiple.append((col, var))
+
 def actualizar_combo_variables():
     global datos
 
     if datos is not None:
         columnas = datos.columns.tolist()
 
-        combo_x_multiple.configure(values=columnas)
-        # Actualizar combobox para variable Y
+        combo_y.configure(values=columnas)
+        combo_x.configure(values=columnas)
+
+        crear_selector_multiple(scroll_frame_x, columnas)
         combo_y_multiple.configure(values=columnas)
 
-# Función para manejar la selección de variables desde Listbox y ComboBox
 def seleccionar_variables_multiple():
     global variables_x, variable_y
 
-    variables_x = combo_x_multiple.get().split(",")
+    variables_x = [col for col, var in checkboxes_x_multiple if var.get() == "1"]
     variable_y = combo_y_multiple.get()
 
     calcular_regresion_multiple()
-# Botón para realizar la regresión múltiple
-boton_regresion_multiple = ctk.CTkButton(
-    frame_seleccion_multiple,
-    text="Calcular Regresión Múltiple",
-    command=seleccionar_variables_multiple
-)
-boton_regresion_multiple.grid(row=1, column=3, columnspan=2, pady=10)
+
 
 # Área de texto para mostrar los resultados de la regresión
 #text_regresion_multiple = ctk.CTkTextbox(frame_regresion_multiple_main, wrap="word")
