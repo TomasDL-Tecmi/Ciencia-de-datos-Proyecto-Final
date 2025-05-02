@@ -303,7 +303,6 @@ def calcular_regresion_lineal():
         text_regresion.insert("end", str(resumen))
 
 
-#pendejo
         # Limpiar gráfico anterior
         for widget in frame_regresion.winfo_children():
             widget.destroy()
@@ -580,6 +579,86 @@ def exportar_pdf():
             if os.path.exists(img_temp):
                 os.remove(img_temp)
         
+         # Agregar resultados de regresión lineal si existen
+        if 'text_regresion' in globals() and text_regresion.get("1.0", "end").strip():
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, "Resultados de Regresión Lineal:", 0, 1)
+            pdf.set_font("Arial", "", 10)
+            
+            # Obtener el contenido del texto de regresión lineal
+            regresion_content = text_regresion.get("1.0", "end").strip()
+            
+            # Dividir el contenido en líneas y agregar cada línea al PDF
+            for line in regresion_content.split('\n'):
+                if line.strip():  # Evitar líneas vacías
+                    pdf.multi_cell(0, 5, line, 0, 1)
+            
+            # Si hay un gráfico de regresión lineal en el frame_regresion
+            if frame_regresion.winfo_children():
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 12)
+                pdf.cell(0, 10, "Gráfico de Regresión Lineal:", 0, 1, "C")
+                
+                # Guardar el gráfico actual en un buffer temporal
+                for widget in frame_regresion.winfo_children():
+                    if isinstance(widget, FigureCanvasTkAgg):
+                        buf = io.BytesIO()
+                        widget.figure.savefig(buf, format='png')
+                        buf.seek(0)
+                        
+                        # Guardar buffer a un archivo temporal
+                        img_temp = "temp_regresion.png"
+                        with open(img_temp, 'wb') as img_file:
+                            img_file.write(buf.getvalue())
+                        
+                        # Agregar la imagen al PDF
+                        pdf.image(img_temp, x=10, y=None, w=190)
+                        
+                        # Eliminar archivo temporal
+                        os.remove(img_temp)
+                        buf.close()
+                        break
+        # Agregar resultados de regresión múltiple
+        if 'text_resultado' in globals() and text_resultado.get("1.0", "end").strip():
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, "Resultados de Regresión Múltiple:", 0, 1)
+            pdf.set_font("Arial", "", 10)
+            
+            # Obtener el contenido del texto de regresión múltiple
+            regresion_content = text_resultado.get("1.0", "end").strip()
+            
+            # Dividir el contenido en líneas y agregar cada línea al PDF
+            for line in regresion_content.split('\n'):
+                if line.strip():  # Evitar líneas vacías
+                    pdf.multi_cell(0, 5, line, 0, 1)
+            
+            # Si hay una gráfica de regresión múltiple, agregarla
+            if 'figura_canvas' in globals() and figura_canvas is not None:
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 12)
+                pdf.cell(0, 10, "Gráfico de Regresión Múltiple:", 0, 1, "C")
+                
+                # Guardar la figura en un buffer temporal
+                buf = io.BytesIO()
+                figura_canvas.figure.savefig(buf, format='png')
+                buf.seek(0)
+                
+                # Guardar buffer a un archivo temporal
+                img_temp = "temp_regresion_multiple.png"
+                with open(img_temp, 'wb') as img_file:
+                    img_file.write(buf.getvalue())
+                
+                # Agregar la imagen al PDF
+                pdf.image(img_temp, x=10, y=None, w=190)
+                
+                # Eliminar archivo temporal
+                os.remove(img_temp)
+                buf.close()
+                 
+       
+
         # Guardar pdf
         pdf.output(archivo)
         
