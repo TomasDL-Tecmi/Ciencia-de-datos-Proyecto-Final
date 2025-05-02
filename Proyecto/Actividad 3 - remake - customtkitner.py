@@ -7,16 +7,13 @@ plt.ioff()
 import math
 import pandas as pd
 import customtkinter as ctk
-import tkinter as tk
 from tkinter import filedialog
-from tkinter.ttk import Combobox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sklearn.metrics import r2_score
 import os
 import statsmodels.api as sm
 from fpdf import FPDF
 import io
-from PIL import Image
 
 # Configuración del tema de CustomTkinter
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
@@ -305,6 +302,8 @@ def calcular_regresion_lineal():
         text_regresion.delete("1.0", "end")
         text_regresion.insert("end", str(resumen))
 
+
+#pendejo
         # Limpiar gráfico anterior
         for widget in frame_regresion.winfo_children():
             widget.destroy()
@@ -320,7 +319,7 @@ def calcular_regresion_lineal():
 
         canvas = FigureCanvasTkAgg(fig, master=frame_regresion)
         canvas.draw()
-        canvas.get_tk_widget().pack()
+        canvas.get_tk_widget().pack(side="right", fill="both", expand=True, padx=(5, 0))
 
     except Exception as e:
         mensaje_var.set(f"Error en la regresión: {str(e)}")
@@ -614,9 +613,6 @@ def cerrar_aplicacion():
         ventana.destroy()
     except Exception as e:
         print(f"Error al cerrar la aplicación: {e}")
-
-
-
 
 ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 
