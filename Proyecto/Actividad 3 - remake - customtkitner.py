@@ -54,19 +54,19 @@ def cargar_archivo():
             else:
                 df = pd.read_csv(ruta_archivo)  # fallback en caso de que no sea ninguno de los anteriores
 
-            datos = df  # Asignar globalmente el DataFrame
-            mostrar_selector_columna(df)  # Llamar la función para mostrar el selector de columnas
+            datos = df
+            mostrar_selector_columna(df)
             mensaje_var.set(f"Archivo cargado: {os.path.basename(ruta_archivo)}")
 
             # === Poblar comboboxes de regresión lineal ===
-            columnas = list(datos.columns)  # Obtener las columnas del dataframe
-            combo_x['values'] = columnas  # Asignar las columnas al combobox de X
-            combo_y['values'] = columnas  # Asignar las columnas al combobox de Y
-            combo_x.set('')  # Limpiar la selección previa en el combobox X
-            combo_y.set('')  # Limpiar la selección previa en el combobox Y
+            columnas = list(datos.columns)
+            combo_x['values'] = columnas  
+            combo_y['values'] = columnas  
+            combo_x.set('')  
+            combo_y.set('')  
 
             # === Poblar selector de regresión múltiple ===
-            actualizar_combo_variables()  # <<--- Esta línea es clave
+            actualizar_combo_variables()
 
         except Exception as e:
             mensaje_var.set(f"Error al cargar el archivo: {str(e)}")
@@ -286,11 +286,11 @@ def calcular_regresion_lineal():
             mensaje_var.set("Las columnas seleccionadas no tienen suficientes datos.")
             return
 
-        # Agregar una constante (intercepto) a la variable x (requerido por statsmodels)
+        # Agregar una constante (intercepto) a la variable x
         x = sm.add_constant(x)
 
         # Calcular la regresión lineal con statsmodels
-        modelo = sm.OLS(y, x)  # OLS = Ordinary Least Squares (mínimos cuadrados ordinarios)
+        modelo = sm.OLS(y, x) 
         resultados = modelo.fit()
 
         # Obtener el resumen completo de los resultados
@@ -307,7 +307,7 @@ def calcular_regresion_lineal():
 
         # Crear y mostrar el gráfico
         fig, ax = plt.subplots()
-        ax.scatter(x.iloc[:, 1], y, label="Datos", color="blue")  # x.iloc[:, 1] para obtener la columna sin la constante
+        ax.scatter(x.iloc[:, 1], y, label="Datos", color="blue") 
         ax.plot(x.iloc[:, 1], resultados.fittedvalues, color='red', label="Regresión lineal")
         ax.set_xlabel(columna_x)
         ax.set_ylabel(columna_y)
@@ -785,7 +785,7 @@ combo_y.pack(side="left", padx=(0, 15))
 boton_regresion = ctk.CTkButton(frame_seleccion, text="Calcular Regresión", command=calcular_regresion_lineal)
 boton_regresion.pack(side="left", padx=10)
 
-# ========== NUEVA SECCIÓN COMBINADA: Texto y gráfico uno al lado del otro ==========
+# ========== SECCION DEL FRAME DIVIDIDO ==========
 
 # Frame contenedor que se expandirá en vertical
 frame_resultado_y_grafico = ctk.CTkFrame(frame_regresion_main)
@@ -818,6 +818,7 @@ checkboxes_x_multiple = []  # Lista para almacenar los checkboxes
 frame_seleccion_multiple = ctk.CTkFrame(frame_regresion_multiple_main, height=40)
 frame_seleccion_multiple.pack(fill="x", padx=5, pady=(5, 0))
 frame_seleccion_multiple.pack_propagate(False)  # Evita que se expanda
+
 
 # Etiqueta para variables X
 label_x_multiple = ctk.CTkLabel(frame_seleccion_multiple, text="Variables X (Independientes):")
