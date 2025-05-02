@@ -1,13 +1,19 @@
 # ============================== [ Librerias ] ==============================
 
 import numpy as np
+from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
+plt.ioff()
 import math
 import pandas as pd
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import filedialog
+from tkinter.ttk import Combobox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from sklearn.metrics import r2_score
 import os
+import statsmodels.api as sm
 from fpdf import FPDF
 import io
 from PIL import Image
@@ -28,7 +34,7 @@ def calcular_k(lista):
 # --- Funcion para cargar archivo CSV ---
 
 def cargar_archivo():
-    global datos
+    global datos  # Declarar 'datos' como global
     ruta_archivo = filedialog.askopenfilename(
         title="Seleccionar archivo de datos",
         filetypes=[
@@ -51,13 +57,27 @@ def cargar_archivo():
             elif extension == '.json':
                 df = pd.read_json(ruta_archivo)
             else:
-                # Intentar con CSV por defecto
-                df = pd.read_csv(ruta_archivo)
-                
-            mostrar_selector_columna(df)
+                df = pd.read_csv(ruta_archivo)  # fallback en caso de que no sea ninguno de los anteriores
+
+            datos = df  # Asignar globalmente el DataFrame
+            mostrar_selector_columna(df)  # Llamar la función para mostrar el selector de columnas
             mensaje_var.set(f"Archivo cargado: {os.path.basename(ruta_archivo)}")
+
+            # === Poblar comboboxes de regresión lineal ===
+            columnas = list(datos.columns)  # Obtener las columnas del dataframe
+            combo_x['values'] = columnas  # Asignar las columnas al combobox de X
+            combo_y['values'] = columnas  # Asignar las columnas al combobox de Y
+            combo_x.set('')  # Limpiar la selección previa en el combobox X
+            combo_y.set('')  # Limpiar la selección previa en el combobox Y
+
+            # === Poblar selector de regresión múltiple ===
+            actualizar_combo_variables()  
+            actualizar_combo_variables_lineal()
+
         except Exception as e:
             mensaje_var.set(f"Error al cargar el archivo: {str(e)}")
+
+
 
 # --- Funcion para mostrar selector de columna ---
 
@@ -103,18 +123,20 @@ def mostrar_selector_columna(df):
 # --- Funcion para procesar columna seleccionada ---
 
 def procesar_columna(df, columna, ventana_selector):
-    global datos
+    global datos, datos_procesados
     if columna:
         try:
-            datos = df[columna].dropna().astype(float).tolist()
-            mostrar_datos()
+            datos = df  # Guardamos todo el DataFrame original
+            datos_procesados = df[columna].dropna().astype(float)  # Solo los datos de la columna
+
+            mostrar_datos()  # Seguramente debe mostrar `datos_procesados`
             mensaje_var.set(f"Datos cargados de la columna: {columna}")
             ventana_selector.destroy()
             
             frame_inicio.pack_forget()
             frame_calculos.pack(fill="both", expand=True)
             
-            # Procesar datos automaticamente despues de cargar
+            # Procesar datos automáticamente después de cargar
             procesar_datos()
 
         except Exception as e:
@@ -122,35 +144,38 @@ def procesar_columna(df, columna, ventana_selector):
     else:
         mensaje_var.set("Selecciona una columna")
 
+
 # --- Funcion para mostrar los datos cargados ---
 
 def mostrar_datos():
-    if datos is not None:
-        # Limpiar el widget Text
+    if datos_procesados is not None:
         text_datos.delete("1.0", "end")
-        # Insertar datos en el widget Text
-        for i, valor in enumerate(datos):
+        for i, valor in enumerate(datos_procesados):
             text_datos.insert("end", f"Dato {i+1}: {valor}\n")
     else:
         text_datos.insert("end", "No hay datos cargados.\n")
+
 
 # --- Funcion principal para procesar los datos ---
 
 def procesar_datos():
     global df_resultados, figuras
-    if not datos:
-        mensaje_var.set("No hay datos para procesar, proporcione un archivo CSV primero.")
+
+    if datos_procesados is None or datos_procesados.empty:
+        mensaje_var.set("No hay datos válidos para procesar.")
         return
-    
+
     try:
-        # Calculos basicos
-        n = datos
+        # Usar los datos ya procesados desde procesar_columna
+        n = datos_procesados
+
+        # Cálculos básicos
         promedio = np.mean(n)
         ct = len(n)
         rango = max(n) - min(n)
         k = round(calcular_k(n))
-        c = rango / k
-        
+        c = rango / k if k != 0 else 1  # evitar división entre cero
+
         # Crear clases
         min_valor = min(n)
         clases = []
@@ -158,49 +183,52 @@ def procesar_datos():
             limite_inf = min_valor + i * c
             limite_sup = min_valor + (i + 1) * c
             clases.append((limite_inf, limite_sup))
-        
+
         # Crear tabla de frecuencias
         tabla = {
-            "Numero de clase": list(range(1, k+1)),
+            "Numero de clase": list(range(1, k + 1)),
             "Clase": [f"{round(clase[0], 2)} - {round(clase[1], 2)}" for clase in clases],
         }
-        
+
         # Calcular marca de clase
         tabla["Marca de clase"] = [(clase[0] + clase[1]) / 2 for clase in clases]
-        
+
         # Calcular frecuencias
         frecuencia_absoluta = [sum(1 for dato in n if clase[0] <= dato < clase[1]) for clase in clases]
         tabla["Frecuencia absoluta"] = frecuencia_absoluta
-        tabla["Frecuencia acumulada"] = [sum(tabla["Frecuencia absoluta"][:i+1]) for i in range(len(tabla["Frecuencia absoluta"]))]
-        
-        total_frecuencia = sum(tabla["Frecuencia absoluta"])
-        tabla["Frecuencia relativa"] = [f / total_frecuencia for f in tabla["Frecuencia absoluta"]]
+        tabla["Frecuencia acumulada"] = [sum(frecuencia_absoluta[:i + 1]) for i in range(len(frecuencia_absoluta))]
+
+        total_frecuencia = sum(frecuencia_absoluta)
+        tabla["Frecuencia relativa"] = [f / total_frecuencia for f in frecuencia_absoluta]
         tabla["Frecuencia porcentual"] = [fr * 100 for fr in tabla["Frecuencia relativa"]]
-        
+
+        # Cálculo de (x - X̄) y su cuadrado
         tabla["(x-X)"] = [x - promedio for x in tabla["Marca de clase"]]
         tabla["(x-X)^2"] = [(x - promedio) ** 2 for x in tabla["Marca de clase"]]
-        
-        # Crear dataframe de resultados
+
+        # Crear DataFrame de resultados
         df_resultados = pd.DataFrame(tabla)
-        
-        # Calcular estadisticas adicionales
+
+        # Estadísticas adicionales
         sumatoria = df_resultados["(x-X)^2"].sum()
-        varianza = (sumatoria / (ct - 1))
+        varianza = (sumatoria / (ct - 1)) if ct > 1 else 0
         desviacion_estandar = varianza ** 0.5
-        
+
         # Mostrar resultados
         mostrar_resultados(promedio, varianza, desviacion_estandar, rango, k, c)
-        
-        # Generar graficos
+
+        # Generar gráficos
         generar_graficos()
-        
+
         # Calcular regresión lineal
         calcular_regresion_lineal()
-        
+
         mensaje_var.set("Datos procesados correctamente")
 
     except Exception as e:
         mensaje_var.set(f"No se procesaron los datos, paso esto: {str(e)}")
+
+
 
 # --- Funcion para mostrar resultados ---
 
@@ -236,69 +264,133 @@ def mostrar_resultados(promedio, varianza, desviacion, rango, k, c):
 
 # --- Funcion para calcular regresión lineal ---
 
+canvas_regresion = None
+figura_regresion = None
+
 def calcular_regresion_lineal():
-    if not datos:
-        text_regresion.insert("end", "No hay datos para calcular la regresión lineal.\n")
-        return
-    
+    global datos
     try:
-        # Crear datos X e Y para la regresión
-        # Usaremos el índice como X y los datos como Y para un ejemplo simple
-        x = np.array(range(len(datos)))
-        y = np.array(datos)
-        
-        # Calcular la regresión lineal
-        pendiente, intercepto = np.polyfit(x, y, 1)
-        r_cuadrado = np.corrcoef(x, y)[0, 1]**2
-        
-        # Crear la línea de regresión
-        linea_regresion = pendiente * x + intercepto
-        
-        # Mostrar resultados en el widget de texto
+        # Obtener las columnas seleccionadas desde los combobox
+        columna_x = combo_x.get()
+        columna_y = combo_y.get()
+
+        # Verificar si las columnas seleccionadas existen en el DataFrame
+        if columna_x not in datos.columns or columna_y not in datos.columns:
+            mensaje_var.set("Por favor, selecciona columnas válidas.")
+            return
+
+        # Extraer las columnas como Series, quitando valores nulos y convirtiendo a float
+        x = datos[columna_x].dropna().astype(float)
+        y = datos[columna_y].dropna().astype(float)
+
+        # Asegurar que ambas series tengan la misma longitud
+        min_len = min(len(x), len(y))
+        x = x.iloc[:min_len]
+        y = y.iloc[:min_len]
+
+        if len(x) == 0 or len(y) == 0:
+            mensaje_var.set("Las columnas seleccionadas no tienen suficientes datos.")
+            return
+
+        # Agregar una constante (intercepto) a la variable x (requerido por statsmodels)
+        x = sm.add_constant(x)
+
+        # Calcular la regresión lineal con statsmodels
+        modelo = sm.OLS(y, x)  # OLS = Ordinary Least Squares (mínimos cuadrados ordinarios)
+        resultados = modelo.fit()
+
+        # Obtener el resumen completo de los resultados
+        resumen = resultados.summary()
+
+        # Mostrar el resumen de la regresión en el TextBox
         text_regresion.delete("1.0", "end")
-        text_regresion.insert("end", "Resultados de la Regresión Lineal:\n\n")
-        text_regresion.insert("end", f"Ecuación de la recta: Y = {pendiente:.4f}X + {intercepto:.4f}\n\n")
-        text_regresion.insert("end", f"Coeficiente de determinación (R²): {r_cuadrado:.4f}\n\n")
-        text_regresion.insert("end", f"Interpretación:\n")
-        text_regresion.insert("end", f"- La pendiente ({pendiente:.4f}) indica el cambio promedio en Y por cada unidad de cambio en X.\n")
-        text_regresion.insert("end", f"- El intercepto ({intercepto:.4f}) es el valor de Y cuando X es 0.\n")
-        text_regresion.insert("end", f"- R² ({r_cuadrado:.4f}) indica qué proporción de la variabilidad en Y es explicada por X.\n")
-        
-        # Crear gráfico de regresión
-        fig_regresion = plt.Figure(figsize=(8, 5))
-        ax = fig_regresion.add_subplot(111)
-        
-        # Graficar puntos de datos
-        ax.scatter(x, y, color='blue', alpha=0.5, label='Datos')
-        
-        # Graficar línea de regresión
-        ax.plot(x, linea_regresion, color='red', label=f'Y = {pendiente:.4f}X + {intercepto:.4f}')
-        
-        # Añadir etiquetas y leyenda
-        ax.set_title("Regresión Lineal")
-        ax.set_xlabel("Índice")
-        ax.set_ylabel("Valor")
-        ax.legend()
-        ax.grid(True, linestyle='--', alpha=0.7)
-        
-        # Añadir texto con R²
-        ax.text(0.05, 0.95, f'R² = {r_cuadrado:.4f}', transform=ax.transAxes, 
-                fontsize=10, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        fig_regresion.tight_layout()
-        
-        # Limpiar frame de gráfico de regresión
+        text_regresion.insert("end", str(resumen))
+
+        # Limpiar gráfico anterior
         for widget in frame_regresion.winfo_children():
             widget.destroy()
-        
-        # Mostrar gráfico en el frame
-        canvas_regresion = FigureCanvasTkAgg(fig_regresion, frame_regresion)
-        canvas_regresion.draw()
-        canvas_regresion.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
-        
+
+        # Crear y mostrar el gráfico
+        fig, ax = plt.subplots()
+        ax.scatter(x.iloc[:, 1], y, label="Datos", color="blue")  # x.iloc[:, 1] para obtener la columna sin la constante
+        ax.plot(x.iloc[:, 1], resultados.fittedvalues, color='red', label="Regresión lineal")
+        ax.set_xlabel(columna_x)
+        ax.set_ylabel(columna_y)
+        ax.legend()
+        fig.tight_layout()
+
+        canvas = FigureCanvasTkAgg(fig, master=frame_regresion)
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+
     except Exception as e:
-        text_regresion.delete("1.0", "end")
-        text_regresion.insert("end", f"Error al calcular la regresión lineal: {str(e)}\n")
+        mensaje_var.set(f"Error en la regresión: {str(e)}")
+
+# Función para calcular regresión múltiple
+def calcular_regresion_multiple():
+    global datos, variables_x, variable_y
+
+    if datos is None or datos.empty:
+        mensaje_var.set("No se han cargado los datos correctamente.")
+        return
+
+    if not variables_x or not variable_y:
+        mensaje_var.set("Selecciona las variables para la regresión.")
+        return
+
+    try:
+        X = datos[variables_x]
+        y = datos[variable_y]
+
+        # Agregar constante para intercepto en statsmodels
+        X_con_constante = sm.add_constant(X)
+
+        # Modelo con statsmodels para obtener el summary
+        modelo_sm = sm.OLS(y, X_con_constante).fit()
+        resumen = modelo_sm.summary().as_text()
+
+        # También puedes usar LinearRegression para el ajuste, si deseas usarlo en el futuro
+        regresion = LinearRegression()
+        regresion.fit(X, y)
+        y_pred = regresion.predict(X)
+
+        # Crear nueva ventana de resultados
+        ventana_resultados = ctk.CTkToplevel()
+        ventana_resultados.geometry("900x500")
+        ventana_resultados.title("Resultados - Regresión Múltiple")
+
+        # Panel izquierdo para el texto del summary
+        panel_texto = ctk.CTkFrame(ventana_resultados, width=400)
+        panel_texto.pack(side="left", fill="both", expand=False, padx=10, pady=10)
+
+        texto_resultado = ctk.CTkTextbox(panel_texto, wrap="word", width=400, font=("Consolas", 11))
+        texto_resultado.pack(fill="both", expand=True, padx=10, pady=10)
+        texto_resultado.insert("1.0", resumen)
+        texto_resultado.configure(state="disabled")
+
+        # Panel derecho para la gráfica
+        panel_grafico = ctk.CTkFrame(ventana_resultados)
+        panel_grafico.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+
+        # Crear figura matplotlib
+        fig, ax = plt.subplots(figsize=(5, 4))
+        ax.scatter(y, y_pred, c='blue', label='Valores Predichos')
+        ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Línea Ideal')
+        ax.set_xlabel("Valores Reales (Y)")
+        ax.set_ylabel("Valores Predichos (Ŷ)")
+        ax.set_title("Regresión Múltiple: Y vs Ŷ")
+        ax.legend()
+        ax.grid(True)
+
+        # Embebemos la gráfica en tkinter
+        canvas = FigureCanvasTkAgg(fig, master=panel_grafico)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
+    except Exception as e:
+        mensaje_var.set(f"Error en la regresión: {str(e)}")
+
+
 
 # --- Funcion para generar las graficas ---
 
@@ -504,6 +596,8 @@ def exportar_pdf():
     except Exception as e:
         mensaje_var.set(f"No funciono we, el error es: {str(e)}")
 
+
+
 # --- El boton Atras ---
 
 def atras():
@@ -516,6 +610,22 @@ ventana = ctk.CTk()
 ventana.title("Actividad 3 - Ciencia de datos")
 ventana.geometry("800x600")
 ventana.resizable(True, True)
+
+# Función para cerrar la aplicación limpiamente
+def cerrar_aplicacion():
+    try:
+        if canvas_regresion:
+            canvas_regresion.get_tk_widget().pack_forget()
+        if figura_regresion:
+            plt.close(figura_regresion)
+        ventana.destroy()
+    except Exception as e:
+        print(f"Error al cerrar la aplicación: {e}")
+
+
+
+
+ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 
 # ============================== [ Variables globales ] ==============================
 
@@ -561,6 +671,7 @@ tab_resultados = notebook.add("Resultados")
 tab_tabla = notebook.add("Tabla de Frecuencias")
 tab_graficos = notebook.add("Graficos")
 tab_regresion = notebook.add("Regresion Lineal")
+tab_regresion_multiple = notebook.add("Regresion Multiple")
 
 # Contenido de la pestaña Datos
 text_datos = ctk.CTkTextbox(tab_datos, wrap="word")
@@ -582,12 +693,106 @@ frame_graficos.pack(fill="both", expand=True)
 frame_regresion_main = ctk.CTkFrame(tab_regresion)
 frame_regresion_main.pack(fill="both", expand=True)
 
+#Contenido de la pestaña Regresión Múltiple
+frame_regresion_multiple_main = ctk.CTkFrame(tab_regresion_multiple)
+frame_regresion_multiple_main.pack(fill="both", expand=True)
+
+# ============================== [ Controles para regresión lineal ] ==============================
+
+# Frame superior para selección de variables y botón
+frame_seleccion = ctk.CTkFrame(frame_regresion_main)
+frame_seleccion.pack(fill="x", padx=10, pady=(10, 0))
+
+# Etiqueta y combobox para variable X
+label_x = ctk.CTkLabel(frame_seleccion, text="Variable X:")
+label_x.pack(side="left", padx=(0, 5))
+combo_x = ctk.CTkComboBox(frame_seleccion, state="normal", width=200)
+combo_x.pack(side="left", padx=(0, 15))
+
+# Etiqueta y combobox para variable Y
+label_y = ctk.CTkLabel(frame_seleccion, text="Variable Y:")
+label_y.pack(side="left", padx=(0, 5))
+combo_y = ctk.CTkComboBox(frame_seleccion, state="normal", width=200)
+combo_y.pack(side="left", padx=(0, 15))
+
+def actualizar_combo_variables_lineal():
+    global datos
+
+    if datos is not None:
+        columnas = datos.columns.tolist()
+
+        combo_x.configure(values=columnas)
+        # Actualizar combobox para variable Y
+        combo_y.configure(values=columnas)
+
+
+# Botón para calcular regresión
+boton_regresion = ctk.CTkButton(frame_seleccion, text="Calcular Regresión", command=calcular_regresion_lineal)
+boton_regresion.pack(side="left", padx=10)
+
 # Dividir en dos secciones: texto y gráfico
 text_regresion = ctk.CTkTextbox(frame_regresion_main, wrap="word")
 text_regresion.pack(fill="both", expand=True, padx=10, pady=10)
 
 frame_regresion = ctk.CTkFrame(frame_regresion_main)
 frame_regresion.pack(fill="both", expand=True, padx=10, pady=10)
+
+
+# Variables para almacenar las selecciones de las variables
+variables_x = []  # Variables para las características independientes
+variable_y = ""   # Variable para la característica dependiente
+
+# =============================== [ Controles para regresión múltiple ] ==============================
+
+# Frame superior para selección de variables
+frame_seleccion_multiple = ctk.CTkFrame(frame_regresion_multiple_main)
+frame_seleccion_multiple.pack(fill="x", padx=10, pady=(10, 0))
+
+# Etiqueta para variables X
+label_x_multiple = ctk.CTkLabel(frame_seleccion_multiple, text="Variables X (Independientes):")
+label_x_multiple.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+combo_x_multiple = ctk.CTkComboBox(frame_seleccion_multiple, state="normal", width=200)
+combo_x_multiple.grid(row=1, column=0, padx=5, pady=5)
+
+# Etiqueta y combobox para variable Y (dependiente)
+label_y_multiple = ctk.CTkLabel(frame_seleccion_multiple, text="Variable Y (Dependiente):")
+label_y_multiple.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+combo_y_multiple = ctk.CTkComboBox(frame_seleccion_multiple, state="normal", width=200)
+combo_y_multiple.grid(row=1, column=1, padx=5, pady=5)
+
+# Función para actualizar los widgets con las columnas disponibles
+def actualizar_combo_variables():
+    global datos
+
+    if datos is not None:
+        columnas = datos.columns.tolist()
+
+        combo_x_multiple.configure(values=columnas)
+        # Actualizar combobox para variable Y
+        combo_y_multiple.configure(values=columnas)
+
+# Función para manejar la selección de variables desde Listbox y ComboBox
+def seleccionar_variables_multiple():
+    global variables_x, variable_y
+
+    variables_x = combo_x_multiple.get().split(",")
+    variable_y = combo_y_multiple.get()
+
+    calcular_regresion_multiple()
+# Botón para realizar la regresión múltiple
+boton_regresion_multiple = ctk.CTkButton(
+    frame_seleccion_multiple,
+    text="Calcular Regresión Múltiple",
+    command=seleccionar_variables_multiple
+)
+boton_regresion_multiple.grid(row=1, column=3, columnspan=2, pady=10)
+
+# Área de texto para mostrar los resultados de la regresión
+#text_regresion_multiple = ctk.CTkTextbox(frame_regresion_multiple_main, wrap="word")
+#text_regresion_multiple.pack(fill="both", expand=True, padx=10, pady=10)
+
 
 # Etiqueta para mensajes
 mensaje_label = ctk.CTkLabel(frame_calculos, textvariable=mensaje_var)
