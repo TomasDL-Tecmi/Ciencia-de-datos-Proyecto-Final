@@ -58,14 +58,14 @@ def cargar_archivo():
             mostrar_selector_columna(df)
             mensaje_var.set(f"Archivo cargado: {os.path.basename(ruta_archivo)}")
 
-            # === Poblar comboboxes de regresión lineal ===
+            # Poblar comboboxes de regresión lineal
             columnas = list(datos.columns)
             combo_x['values'] = columnas  
             combo_y['values'] = columnas  
             combo_x.set('')  
             combo_y.set('')  
 
-            # === Poblar selector de regresión múltiple ===
+            # Poblar selector de regresión múltiple
             actualizar_combo_variables()
 
         except Exception as e:
@@ -256,7 +256,7 @@ def mostrar_resultados(promedio, varianza, desviacion, rango, k, c):
     # Insertar la tabla formateada
     text_tabla.insert("end", df_resultados.to_string(index=False) + "\n")
 
-# --- Funcion para calcular regresión lineal ---
+# --- Funcion para calcular regresion lineal ---
 
 canvas_regresion = None
 figura_regresion = None
@@ -286,29 +286,37 @@ def calcular_regresion_lineal():
             mensaje_var.set("Las columnas seleccionadas no tienen suficientes datos.")
             return
 
-        # Agregar una constante (intercepto) a la variable x
-        x = sm.add_constant(x)
+        x_const = sm.add_constant(x)
 
-        # Calcular la regresión lineal con statsmodels
-        modelo = sm.OLS(y, x) 
+        modelo = sm.OLS(y, x_const)
         resultados = modelo.fit()
 
         # Obtener el resumen completo de los resultados
         resumen = resultados.summary()
 
-        # Mostrar el resumen de la regresión en el TextBox
+        # Mostrar el resumen de la regresion en el TextBox
         text_regresion.delete("1.0", "end")
         text_regresion.insert("end", str(resumen))
 
-
-        # Limpiar gráfico anterior
         for widget in frame_regresion.winfo_children():
             widget.destroy()
 
-        # Crear y mostrar el gráfico
         fig, ax = plt.subplots()
-        ax.scatter(x.iloc[:, 1], y, label="Datos", color="blue") 
-        ax.plot(x.iloc[:, 1], resultados.fittedvalues, color='red', label="Regresión lineal")
+        ax.scatter(x, y, label="Datos", color="blue")
+        ax.plot(x, resultados.fittedvalues, color='red', label="Regresión lineal")
+
+        # Obtener coeficientes
+        intercepto = resultados.params[0]
+        pendiente = resultados.params[1]
+
+        # Crear la ecuación como string
+        ecuacion = f"y = {pendiente:.2f}x + {intercepto:.2f}"
+
+        # Añadir la ecuacion al grafico
+        ax.text(0.05, 0.95, ecuacion, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(facecolor='white', alpha=0.5))
+
         ax.set_xlabel(columna_x)
         ax.set_ylabel(columna_y)
         ax.legend()
@@ -319,9 +327,13 @@ def calcular_regresion_lineal():
         canvas.get_tk_widget().pack(side="right", fill="both", expand=True, padx=(5, 0))
 
     except Exception as e:
+        mensaje_var.set(f"Error: {str(e)}")
+
+
+    except Exception as e:
         mensaje_var.set(f"Error en la regresión: {str(e)}")
 
-# Función para calcular regresión múltiple
+#Funcion para la regresion multiple
 def calcular_regresion_multiple():
     global datos, variables_x, variable_y, text_resultado, frame_grafica, figura_canvas
 
@@ -357,11 +369,22 @@ def calcular_regresion_multiple():
         text_resultado.insert("1.0", resumen)
         text_resultado.configure(state="disabled")
 
-        # Limpiar gráfica anterior
+        # Limpiar grafica anterior
         for widget in frame_grafica.winfo_children():
             widget.destroy()
 
-        # Crear nueva gráfica
+        # Calcular la ecuacion de la regresion multiple
+        coeficientes = modelo_sm.params
+        ecuacion = "Ŷ = "
+        for i, nombre in enumerate(coeficientes.index):
+            valor = coeficientes[nombre]
+            if i == 0:
+                ecuacion += f"{valor:.2f}"
+            else:
+                signo = " + " if valor >= 0 else " - "
+                ecuacion += f"{signo}{abs(valor):.2f}·{nombre}"
+
+        # Crear nueva grafica
         fig, ax = plt.subplots(figsize=(5, 4))
         ax.scatter(y, y_pred, c='blue', label='Valores Predichos')
         ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Línea Ideal')
@@ -370,6 +393,11 @@ def calcular_regresion_multiple():
         ax.set_title("Regresión Múltiple: Y vs Ŷ")
         ax.legend()
         ax.grid(True)
+
+        # Añadir la ecuacion al grafico
+        ax.text(0.05, 0.95, ecuacion, transform=ax.transAxes,
+                fontsize=9, verticalalignment='top',
+                bbox=dict(facecolor='white', alpha=0.6))
 
         figura_canvas = FigureCanvasTkAgg(fig, master=frame_grafica)
         figura_canvas.draw()
@@ -380,6 +408,7 @@ def calcular_regresion_multiple():
         text_resultado.delete("1.0", "end")
         text_resultado.insert("1.0", f"Error en la regresión: {str(e)}")
         text_resultado.configure(state="disabled")
+
 
 # --- Funcion para generar las graficas ---
 
