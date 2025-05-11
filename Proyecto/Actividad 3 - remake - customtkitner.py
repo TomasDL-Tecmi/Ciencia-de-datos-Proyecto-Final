@@ -19,6 +19,11 @@ ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark
 
 # ============================== [ Funciones principales ] ==============================
 
+modelo_lineal = None
+columna_x_regresion = None
+columna_y_regresion = None
+
+
 # --- Funcion para calcular k ---
 
 def calcular_k(lista):
@@ -291,6 +296,12 @@ def calcular_regresion_lineal():
         modelo = sm.OLS(y, x_const)
         resultados = modelo.fit()
 
+        global modelo_lineal, columna_x_regresion, columna_y_regresion
+        modelo_lineal = resultados
+        columna_x_regresion = columna_x
+        columna_y_regresion = columna_y
+
+
         # Obtener el resumen completo de los resultados
         resumen = resultados.summary()
 
@@ -335,7 +346,7 @@ def calcular_regresion_lineal():
 
 #Funcion para la regresion multiple
 def calcular_regresion_multiple():
-    global datos, variables_x, variable_y, text_resultado, frame_grafica, figura_canvas
+    global datos, variables_x, variable_y, text_resultado, frame_grafica, figura_canvas, modelo_sm
 
     if datos is None or datos.empty:
         text_resultado.configure(state="normal")
@@ -408,6 +419,9 @@ def calcular_regresion_multiple():
         text_resultado.delete("1.0", "end")
         text_resultado.insert("1.0", f"Error en la regresión: {str(e)}")
         text_resultado.configure(state="disabled")
+    
+    generar_entradas_pred_multiple()
+
 
 
 # --- Funcion para generar las graficas ---
@@ -767,6 +781,9 @@ tab_tabla = notebook.add("Tabla de Frecuencias")
 tab_graficos = notebook.add("Graficos")
 tab_regresion = notebook.add("Regresion Lineal")
 tab_regresion_multiple = notebook.add("Regresion Multiple")
+tab_prediccion_lineal = notebook.add("Predicción Lineal")
+tab_prediccion_multiple = notebook.add("Predicción Múltiple")
+
 
 # Contenido de la pestaña Datos
 text_datos = ctk.CTkTextbox(tab_datos, wrap="word")
@@ -888,6 +905,122 @@ frame_grafica.pack(side="right", fill="both", expand=True, padx=(5, 0))
 
 # Variable para evitar superposición de gráficas
 figura_canvas = None
+
+# =================================== PREDICCION LINEAL ===============================
+# Contenido de la pestaña Predicción Lineal
+frame_pred_lineal = ctk.CTkFrame(tab_prediccion_lineal)
+frame_pred_lineal.pack(fill="both", expand=True, padx=20, pady=20)
+
+# Título
+titulo_pred = ctk.CTkLabel(frame_pred_lineal, text="Predicción con Regresión Lineal", font=("Arial", 16, "bold"))
+titulo_pred.pack(pady=10)
+
+# Entrada para X
+label_x_pred = ctk.CTkLabel(frame_pred_lineal, text="Ingrese valor de X:")
+label_x_pred.pack(pady=(10, 2))
+
+entrada_x = ctk.CTkEntry(frame_pred_lineal)
+entrada_x.pack(pady=(0, 10))
+
+# Resultado
+label_resultado_pred = ctk.CTkLabel(frame_pred_lineal, text="Resultado: ", font=("Arial", 14))
+label_resultado_pred.pack(pady=10)
+
+# Función para predecir Y
+def predecir_y_lineal():
+    global modelo_lineal, columna_x_regresion
+    try:
+        if modelo_lineal is None or columna_x_regresion is None:
+            label_resultado_pred.configure(text="Primero debes ejecutar la regresión lineal.")
+            return
+
+        # Obtener valor ingresado por el usuario
+        x_valor = float(entrada_x.get())
+
+        # Crear DataFrame con el mismo nombre de columna usado en el modelo
+        df_pred = pd.DataFrame({columna_x_regresion: [x_valor]})
+
+        # Agregar la constante manualmente con el mismo nombre que el modelo espera ("const")
+        df_pred.insert(0, "const", 1.0)
+
+        # Hacer predicción
+        y_pred = modelo_lineal.predict(df_pred)[0]
+
+        label_resultado_pred.configure(text=f"Resultado: Y = {y_pred:.4f}")
+
+    except Exception as e:
+        label_resultado_pred.configure(text=f"Error: {str(e)}")
+
+
+
+# Botón para predecir
+boton_predecir = ctk.CTkButton(frame_pred_lineal, text="Predecir Y", command=predecir_y_lineal)
+boton_predecir.pack(pady=5)
+
+#===================================== PREDICCION MULTIPLE ===============================
+# =============================== PREDICCIÓN MÚLTIPLE ===============================
+frame_pred_multiple = ctk.CTkFrame(tab_prediccion_multiple)
+frame_pred_multiple.pack(fill="both", expand=True, padx=20, pady=20)
+
+titulo_pred_multiple = ctk.CTkLabel(frame_pred_multiple, text="Predicción con Regresión Múltiple", font=("Arial", 16, "bold"))
+titulo_pred_multiple.pack(pady=10)
+
+# ScrollableFrame para entradas
+scroll_frame_pred = ctk.CTkScrollableFrame(frame_pred_multiple, width=300, height=200)
+scroll_frame_pred.pack(pady=10)
+
+# Diccionario para guardar las entradas por nombre de variable
+entradas_pred_multiple = {}
+
+# Resultado
+label_resultado_pred_multiple = ctk.CTkLabel(frame_pred_multiple, text="Resultado: ", font=("Arial", 14))
+label_resultado_pred_multiple.pack(pady=10)
+
+# Función para generar campos de entrada basados en variables_x
+def generar_entradas_pred_multiple():
+    global variables_x, entradas_pred_multiple
+    for widget in scroll_frame_pred.winfo_children():
+        widget.destroy()
+    entradas_pred_multiple = {}
+
+    for var in variables_x:
+        lbl = ctk.CTkLabel(scroll_frame_pred, text=f"{var}:")
+        lbl.pack()
+        entry = ctk.CTkEntry(scroll_frame_pred)
+        entry.pack(pady=5)
+        entradas_pred_multiple[var] = entry
+
+# Función para predecir usando regresión múltiple
+def predecir_y_multiple():
+    global variables_x, modelo_sm, variable_y
+    try:
+        if not variables_x or variable_y == "" or modelo_sm is None:
+            label_resultado_pred_multiple.configure(text="Primero debes ejecutar la regresión múltiple.")
+            return
+
+        # Obtener valores de entrada
+        valores = {}
+        for var in variables_x:
+            val = float(entradas_pred_multiple[var].get())
+            valores[var] = val
+
+        # Crear DataFrame de predicción con una fila
+        df_pred = pd.DataFrame([valores])
+
+        # Añadir constante "const"
+        df_pred.insert(0, "const", 1.0)
+
+        # Realizar predicción
+        y_pred = modelo_sm.predict(df_pred)[0]
+
+        label_resultado_pred_multiple.configure(text=f"Resultado: Y = {y_pred:.4f}")
+
+    except Exception as e:
+        label_resultado_pred_multiple.configure(text=f"Error: {str(e)}")
+
+# Botón para predecir
+boton_predecir_multiple = ctk.CTkButton(frame_pred_multiple, text="Predecir Y", command=predecir_y_multiple)
+boton_predecir_multiple.pack(pady=10)
 
 # =================================== FUNCIONES =======================================
 
