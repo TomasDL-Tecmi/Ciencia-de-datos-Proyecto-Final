@@ -272,20 +272,16 @@ figura_regresion = None
 def calcular_regresion_lineal():
     global datos
     try:
-        # Obtener las columnas seleccionadas desde los combobox
         columna_x = combo_x.get()
         columna_y = combo_y.get()
 
-        # Verificar si las columnas seleccionadas existen en el DataFrame
         if columna_x not in datos.columns or columna_y not in datos.columns:
             mensaje_var.set("Por favor, selecciona columnas válidas.")
             return
 
-        # Extraer las columnas como Series, quitando valores nulos y convirtiendo a float
         x = datos[columna_x].dropna().astype(float)
         y = datos[columna_y].dropna().astype(float)
 
-        # Asegurar que ambas series tengan la misma longitud
         min_len = min(len(x), len(y))
         x = x.iloc[:min_len]
         y = y.iloc[:min_len]
@@ -294,11 +290,9 @@ def calcular_regresion_lineal():
             mensaje_var.set("Las columnas seleccionadas no tienen suficientes datos.")
             return
 
-        # Agregar una constante (intercepto) a la variable x
-        x = sm.add_constant(x)
+        x_const = sm.add_constant(x)
 
-        # Calcular la regresión lineal con statsmodels
-        modelo = sm.OLS(y, x) 
+        modelo = sm.OLS(y, x_const)
         resultados = modelo.fit()
 
         global modelo_lineal, columna_x_regresion, columna_y_regresion
@@ -307,22 +301,31 @@ def calcular_regresion_lineal():
         columna_y_regresion = columna_y
 
 
-        # Obtener el resumen completo de los resultados
+
         resumen = resultados.summary()
 
-        # Mostrar el resumen de la regresión en el TextBox
         text_regresion.delete("1.0", "end")
         text_regresion.insert("end", str(resumen))
 
-
-        # Limpiar gráfico anterior
         for widget in frame_regresion.winfo_children():
             widget.destroy()
 
-        # Crear y mostrar el gráfico
         fig, ax = plt.subplots()
-        ax.scatter(x.iloc[:, 1], y, label="Datos", color="blue") 
-        ax.plot(x.iloc[:, 1], resultados.fittedvalues, color='red', label="Regresión lineal")
+        ax.scatter(x, y, label="Datos", color="blue")
+        ax.plot(x, resultados.fittedvalues, color='red', label="Regresión lineal")
+
+        # Obtener coeficientes
+        intercepto = resultados.params[0]
+        pendiente = resultados.params[1]
+
+        # Crear la ecuación como string
+        ecuacion = f"y = {pendiente:.2f}x + {intercepto:.2f}"
+
+        # Añadir la ecuación al gráfico
+        ax.text(0.05, 0.95, ecuacion, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(facecolor='white', alpha=0.5))
+
         ax.set_xlabel(columna_x)
         ax.set_ylabel(columna_y)
         ax.legend()
@@ -333,7 +336,8 @@ def calcular_regresion_lineal():
         canvas.get_tk_widget().pack(side="right", fill="both", expand=True, padx=(5, 0))
 
     except Exception as e:
-        mensaje_var.set(f"Error en la regresión: {str(e)}")
+        mensaje_var.set(f"Error: {str(e)}")
+
 
 # Función para calcular regresión múltiple
 def calcular_regresion_multiple():
@@ -375,6 +379,17 @@ def calcular_regresion_multiple():
         for widget in frame_grafica.winfo_children():
             widget.destroy()
 
+        # Construir la ecuación de la regresión múltiple
+        coeficientes = modelo_sm.params
+        ecuacion = "Ŷ = "
+        for i, nombre in enumerate(coeficientes.index):
+            valor = coeficientes[nombre]
+            if i == 0:
+                ecuacion += f"{valor:.2f}"
+            else:
+                signo = " + " if valor >= 0 else " - "
+                ecuacion += f"{signo}{abs(valor):.2f}·{nombre}"
+
         # Crear nueva gráfica
         fig, ax = plt.subplots(figsize=(5, 4))
         ax.scatter(y, y_pred, c='blue', label='Valores Predichos')
@@ -385,6 +400,11 @@ def calcular_regresion_multiple():
         ax.legend()
         ax.grid(True)
 
+        # Añadir la ecuación al gráfico
+        ax.text(0.05, 0.95, ecuacion, transform=ax.transAxes,
+                fontsize=9, verticalalignment='top',
+                bbox=dict(facecolor='white', alpha=0.6))
+
         figura_canvas = FigureCanvasTkAgg(fig, master=frame_grafica)
         figura_canvas.draw()
         figura_canvas.get_tk_widget().pack(fill="both", expand=True)
@@ -394,8 +414,10 @@ def calcular_regresion_multiple():
         text_resultado.delete("1.0", "end")
         text_resultado.insert("1.0", f"Error en la regresión: {str(e)}")
         text_resultado.configure(state="disabled")
-    
+
     generar_entradas_pred_multiple()
+
+
 
 
 # --- Funcion para generar las graficas ---
@@ -932,7 +954,6 @@ boton_predecir = ctk.CTkButton(frame_pred_lineal, text="Predecir Y", command=pre
 boton_predecir.pack(pady=5)
 
 #===================================== PREDICCION MULTIPLE ===============================
-# =============================== PREDICCIÓN MÚLTIPLE ===============================
 frame_pred_multiple = ctk.CTkFrame(tab_prediccion_multiple)
 frame_pred_multiple.pack(fill="both", expand=True, padx=20, pady=20)
 
