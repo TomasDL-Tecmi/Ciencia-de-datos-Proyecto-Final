@@ -270,47 +270,58 @@ canvas_regresion = None
 figura_regresion = None
 
 def calcular_regresion_lineal():
-    global datos
+    global datos # Accede a la variable global 'datos' (el DataFrame cargado)
     try:
+        # Obtiene las columnas seleccionadas desde los combobox del usuario
         columna_x = combo_x.get()
         columna_y = combo_y.get()
 
+        # Verifica que las columnas seleccionadas existen en el DataFrame
         if columna_x not in datos.columns or columna_y not in datos.columns:
             mensaje_var.set("Por favor, selecciona columnas válidas.")
             return
 
+        # Extrae los valores de las columnas, elimina valores nulos y los convierte a float
         x = datos[columna_x].dropna().astype(float)
         y = datos[columna_y].dropna().astype(float)
 
+        # Asegura que ambas series tengan la misma longitud (trunca la más larga)
         min_len = min(len(x), len(y))
         x = x.iloc[:min_len]
         y = y.iloc[:min_len]
 
+        # Si no hay datos válidos, muestra mensaje de error
         if len(x) == 0 or len(y) == 0:
             mensaje_var.set("Las columnas seleccionadas no tienen suficientes datos.")
             return
 
+        # Agrega una constante a x (para el término independiente b0)
         x_const = sm.add_constant(x)
 
+        # Crea el modelo de regresión lineal con statsmodels
         modelo = sm.OLS(y, x_const)
-        resultados = modelo.fit()
+        resultados = modelo.fit() # Ajusta el modelo a los datos
 
+        # Guarda el modelo entrenado y las columnas seleccionadas como variables globales
         global modelo_lineal, columna_x_regresion, columna_y_regresion
         modelo_lineal = resultados
         columna_x_regresion = columna_x
         columna_y_regresion = columna_y
 
-
-
+        # Obtiene el resumen estadístico del modelo
         resumen = resultados.summary()
 
+        # Muestra el resumen en el cuadro de texto de regresión
         text_regresion.delete("1.0", "end")
         text_regresion.insert("end", str(resumen))
 
+        # Limpia cualquier gráfico previo del frame de regresión
         for widget in frame_regresion.winfo_children():
             widget.destroy()
 
+        # Crea una nueva figura y ejes con matplotlib
         fig, ax = plt.subplots()
+        # Dibuja los puntos reales (scatter) y la línea de regresión ajustada
         ax.scatter(x, y, label="Datos", color="blue")
         ax.plot(x, resultados.fittedvalues, color='red', label="Regresión lineal")
 
@@ -326,23 +337,27 @@ def calcular_regresion_lineal():
                 fontsize=10, verticalalignment='top',
                 bbox=dict(facecolor='white', alpha=0.5))
 
+        # Etiquetas de los ejes
         ax.set_xlabel(columna_x)
         ax.set_ylabel(columna_y)
         ax.legend()
-        fig.tight_layout()
+        fig.tight_layout() # Ajusta los márgenes automáticamente
 
         canvas = FigureCanvasTkAgg(fig, master=frame_regresion)
         canvas.draw()
         canvas.get_tk_widget().pack(side="right", fill="both", expand=True, padx=(5, 0))
 
     except Exception as e:
+        # Muestra cualquier error que ocurra en la interfaz
         mensaje_var.set(f"Error: {str(e)}")
 
 
 # Función para calcular regresión múltiple
 def calcular_regresion_multiple():
+    # Declaramos como globales las variables necesarias para acceder y modificarlas
     global datos, variables_x, variable_y, text_resultado, frame_grafica, figura_canvas, modelo_sm
 
+    # Validación: si no hay datos cargados, mostrar mensaje y salir
     if datos is None or datos.empty:
         text_resultado.configure(state="normal")
         text_resultado.delete("1.0", "end")
@@ -350,6 +365,7 @@ def calcular_regresion_multiple():
         text_resultado.configure(state="disabled")
         return
 
+    # Validación: si no hay variables seleccionadas, mostrar mensaje y salir
     if not variables_x or not variable_y:
         text_resultado.configure(state="normal")
         text_resultado.delete("1.0", "end")
@@ -358,13 +374,18 @@ def calcular_regresion_multiple():
         return
 
     try:
+        # Extrae las variables independientes X y la dependiente Y del DataFrame
         X = datos[variables_x]
         y = datos[variable_y]
 
+        # Agrega una constante a X para el término independiente (intercepto)
         X_const = sm.add_constant(X)
+        # Crea y ajusta el modelo de regresión múltiple con statsmodels
         modelo_sm = sm.OLS(y, X_const).fit()
+        # Obtiene el resumen estadístico del modelo en formato texto
         resumen = modelo_sm.summary().as_text()
 
+        # También entrena el modelo con scikit-learn (usado para hacer predicciones)
         regresion = LinearRegression()
         regresion.fit(X, y)
         y_pred = regresion.predict(X)
@@ -404,21 +425,21 @@ def calcular_regresion_multiple():
         ax.text(0.05, 0.95, ecuacion, transform=ax.transAxes,
                 fontsize=9, verticalalignment='top',
                 bbox=dict(facecolor='white', alpha=0.6))
-
+        
+        # Renderiza el gráfico en el frame de la interfaz con Tkinter
         figura_canvas = FigureCanvasTkAgg(fig, master=frame_grafica)
         figura_canvas.draw()
         figura_canvas.get_tk_widget().pack(fill="both", expand=True)
 
     except Exception as e:
+        # Muestra errores si algo sale mal durante el cálculo o gráfico
         text_resultado.configure(state="normal")
         text_resultado.delete("1.0", "end")
         text_resultado.insert("1.0", f"Error en la regresión: {str(e)}")
         text_resultado.configure(state="disabled")
 
+    #Esta función crea campos de entrada para predicción múltiple
     generar_entradas_pred_multiple()
-
-
-
 
 # --- Funcion para generar las graficas ---
 
